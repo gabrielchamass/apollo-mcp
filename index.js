@@ -71,7 +71,7 @@ app.get('/', (req, res) => {
 });
 
 // Rota POST na raiz para compatibilidade com deco.chat (JSON-RPC 2.0)
-app.post('/', (req, res) => {
+app.post('/', async (req, res) => {
   try {
     console.log('📥 Requisição recebida:', JSON.stringify(req.body, null, 2));
     
@@ -96,7 +96,7 @@ app.post('/', (req, res) => {
             tools: [
               {
                 name: "people_search",
-                description: "Buscar pessoas no banco de dados do Apollo usando filtros",
+                description: "Buscar pessoas no banco de dados do Apollo usando todos os filtros avançados disponíveis.",
                 inputSchema: {
                   type: "object",
                   properties: {
@@ -106,13 +106,27 @@ app.post('/', (req, res) => {
                     organization_domains: { type: "array", items: { type: "string" }, description: "Domínios das organizações" },
                     titles: { type: "array", items: { type: "string" }, description: "Cargos das pessoas" },
                     locations: { type: "array", items: { type: "string" }, description: "Localizações" },
-                    seniority_levels: { type: "array", items: { type: "string" }, description: "Níveis de senioridade" }
+                    seniority_levels: { type: "array", items: { type: "string" }, description: "Níveis de senioridade (VP, Director, Manager, Senior, Entry)" },
+                    departments: { type: "array", items: { type: "string" }, description: "Departamentos (Engineering, Sales, Marketing, etc.)" },
+                    contact_email_status: { type: "array", items: { type: "string" }, description: "Status do email (verified, unverified, unknown)" },
+                    has_email: { type: "boolean", description: "Se a pessoa tem email" },
+                    has_phone: { type: "boolean", description: "Se a pessoa tem telefone" },
+                    has_mobile: { type: "boolean", description: "Se a pessoa tem celular" },
+                    has_direct_phone: { type: "boolean", description: "Se a pessoa tem telefone direto" },
+                    has_verified_email: { type: "boolean", description: "Se a pessoa tem email verificado" },
+                    organization_industries: { type: "array", items: { type: "string" }, description: "Indústrias das organizações" },
+                    organization_employee_count: { type: "array", items: { type: "string" }, description: "Tamanho das empresas (1-10, 11-50, 51-200, 201-500, 501-1000, 1001-5000, 5001-10000, 10001+)" },
+                    organization_revenue: { type: "array", items: { type: "string" }, description: "Receita das empresas (Under $1M, $1M-$10M, $10M-$50M, $50M-$100M, $100M-$500M, $500M-$1B, $1B+)" },
+                    organization_technologies: { type: "array", items: { type: "string" }, description: "Tecnologias usadas pelas empresas" },
+                    contact_technologies: { type: "array", items: { type: "string" }, description: "Tecnologias usadas pelo contato" },
+                    contact_languages: { type: "array", items: { type: "string" }, description: "Idiomas do contato" },
+                    contact_timezone: { type: "array", items: { type: "string" }, description: "Fusos horários" }
                   }
                 }
               },
               {
                 name: "people_enrich",
-                description: "Enriquecer dados de uma pessoa específica",
+                description: "Enriquecer dados de uma pessoa específica com todos os campos possíveis.",
                 inputSchema: {
                   type: "object",
                   properties: {
@@ -120,6 +134,38 @@ app.post('/', (req, res) => {
                     last_name: { type: "string", description: "Sobrenome" },
                     email: { type: "string", description: "Email" },
                     domain: { type: "string", description: "Domínio da empresa" },
+                    title: { type: "string", description: "Cargo" },
+                    organization_name: { type: "string", description: "Nome da empresa" },
+                    reveal_personal_emails: { type: "boolean", description: "Revelar emails pessoais" },
+                    reveal_phone_number: { type: "boolean", description: "Revelar número de telefone" },
+                    reveal_linkedin_url: { type: "boolean", description: "Revelar LinkedIn" },
+                    reveal_twitter_url: { type: "boolean", description: "Revelar Twitter" },
+                    reveal_facebook_url: { type: "boolean", description: "Revelar Facebook" },
+                    reveal_website_url: { type: "boolean", description: "Revelar Website" }
+                  }
+                }
+              },
+              {
+                name: "bulk_people_enrich",
+                description: "Enriquecer dados de até 10 pessoas em uma única requisição, aceitando todos os campos possíveis.",
+                inputSchema: {
+                  type: "object",
+                  properties: {
+                    details: {
+                      type: "array",
+                      items: {
+                        type: "object",
+                        properties: {
+                          first_name: { type: "string", description: "Primeiro nome" },
+                          last_name: { type: "string", description: "Sobrenome" },
+                          email: { type: "string", description: "Email" },
+                          domain: { type: "string", description: "Domínio da empresa" },
+                          title: { type: "string", description: "Cargo" },
+                          organization_name: { type: "string", description: "Nome da empresa" }
+                        }
+                      },
+                      description: "Array de pessoas para enriquecer (máx: 10)"
+                    },
                     reveal_personal_emails: { type: "boolean", description: "Revelar emails pessoais" },
                     reveal_phone_number: { type: "boolean", description: "Revelar número de telefone" }
                   }
@@ -127,7 +173,7 @@ app.post('/', (req, res) => {
               },
               {
                 name: "organization_search",
-                description: "Buscar organizações no banco de dados do Apollo",
+                description: "Buscar organizações no banco de dados do Apollo usando todos os filtros avançados disponíveis.",
                 inputSchema: {
                   type: "object",
                   properties: {
@@ -136,19 +182,51 @@ app.post('/', (req, res) => {
                     per_page: { type: "number", description: "Resultados por página (máx: 100)" },
                     organization_domains: { type: "array", items: { type: "string" }, description: "Domínios específicos" },
                     industries: { type: "array", items: { type: "string" }, description: "Indústrias" },
-                    locations: { type: "array", items: { type: "string" }, description: "Localizações" }
+                    locations: { type: "array", items: { type: "string" }, description: "Localizações" },
+                    employee_count: { type: "array", items: { type: "string" }, description: "Tamanho da empresa (1-10, 11-50, 51-200, etc.)" },
+                    revenue: { type: "array", items: { type: "string" }, description: "Receita da empresa (Under $1M, $1M-$10M, etc.)" },
+                    technologies: { type: "array", items: { type: "string" }, description: "Tecnologias usadas" },
+                    funding_total: { type: "string", description: "Total de funding" },
+                    founded_year: { type: "number", description: "Ano de fundação" },
+                    is_public: { type: "boolean", description: "Empresa é pública?" },
+                    is_funded: { type: "boolean", description: "Empresa é financiada?" },
+                    is_acquired: { type: "boolean", description: "Empresa foi adquirida?" },
+                    is_subsidiary: { type: "boolean", description: "Empresa é subsidiária?" },
+                    is_nonprofit: { type: "boolean", description: "Empresa é sem fins lucrativos?" }
                   }
                 }
               },
               {
                 name: "organization_enrich",
-                description: "Enriquecer dados de uma organização pelo domínio",
+                description: "Enriquecer dados de uma organização pelo domínio, retornando todos os campos possíveis.",
                 inputSchema: {
                   type: "object",
                   properties: {
                     domain: { type: "string", description: "Domínio da organização (obrigatório)" }
                   },
                   required: ["domain"]
+                }
+              },
+              {
+                name: "bulk_organization_enrich",
+                description: "Enriquecer dados de múltiplas organizações pelo domínio.",
+                inputSchema: {
+                  type: "object",
+                  properties: {
+                    domains: { type: "array", items: { type: "string" }, description: "Array de domínios das organizações" }
+                  },
+                  required: ["domains"]
+                }
+              },
+              {
+                name: "organization_info",
+                description: "Obter informações completas de uma organização pelo ID.",
+                inputSchema: {
+                  type: "object",
+                  properties: {
+                    id: { type: "string", description: "ID da organização (obrigatório)" }
+                  },
+                  required: ["id"]
                 }
               }
             ]
@@ -246,7 +324,7 @@ app.post('/', (req, res) => {
           tools: [
             {
               name: "people_search",
-              description: "Buscar pessoas no banco de dados do Apollo usando filtros",
+              description: "Buscar pessoas no banco de dados do Apollo usando todos os filtros avançados disponíveis.",
               inputSchema: {
                 type: "object",
                 properties: {
@@ -256,13 +334,27 @@ app.post('/', (req, res) => {
                   organization_domains: { type: "array", items: { type: "string" }, description: "Domínios das organizações" },
                   titles: { type: "array", items: { type: "string" }, description: "Cargos das pessoas" },
                   locations: { type: "array", items: { type: "string" }, description: "Localizações" },
-                  seniority_levels: { type: "array", items: { type: "string" }, description: "Níveis de senioridade" }
+                  seniority_levels: { type: "array", items: { type: "string" }, description: "Níveis de senioridade (VP, Director, Manager, Senior, Entry)" },
+                  departments: { type: "array", items: { type: "string" }, description: "Departamentos (Engineering, Sales, Marketing, etc.)" },
+                  contact_email_status: { type: "array", items: { type: "string" }, description: "Status do email (verified, unverified, unknown)" },
+                  has_email: { type: "boolean", description: "Se a pessoa tem email" },
+                  has_phone: { type: "boolean", description: "Se a pessoa tem telefone" },
+                  has_mobile: { type: "boolean", description: "Se a pessoa tem celular" },
+                  has_direct_phone: { type: "boolean", description: "Se a pessoa tem telefone direto" },
+                  has_verified_email: { type: "boolean", description: "Se a pessoa tem email verificado" },
+                  organization_industries: { type: "array", items: { type: "string" }, description: "Indústrias das organizações" },
+                  organization_employee_count: { type: "array", items: { type: "string" }, description: "Tamanho das empresas (1-10, 11-50, 51-200, 201-500, 501-1000, 1001-5000, 5001-10000, 10001+)" },
+                  organization_revenue: { type: "array", items: { type: "string" }, description: "Receita das empresas (Under $1M, $1M-$10M, $10M-$50M, $50M-$100M, $100M-$500M, $500M-$1B, $1B+)" },
+                  organization_technologies: { type: "array", items: { type: "string" }, description: "Tecnologias usadas pelas empresas" },
+                  contact_technologies: { type: "array", items: { type: "string" }, description: "Tecnologias usadas pelo contato" },
+                  contact_languages: { type: "array", items: { type: "string" }, description: "Idiomas do contato" },
+                  contact_timezone: { type: "array", items: { type: "string" }, description: "Fusos horários" }
                 }
               }
             },
             {
               name: "people_enrich",
-              description: "Enriquecer dados de uma pessoa específica",
+              description: "Enriquecer dados de uma pessoa específica com todos os campos possíveis.",
               inputSchema: {
                 type: "object",
                 properties: {
@@ -270,6 +362,38 @@ app.post('/', (req, res) => {
                   last_name: { type: "string", description: "Sobrenome" },
                   email: { type: "string", description: "Email" },
                   domain: { type: "string", description: "Domínio da empresa" },
+                  title: { type: "string", description: "Cargo" },
+                  organization_name: { type: "string", description: "Nome da empresa" },
+                  reveal_personal_emails: { type: "boolean", description: "Revelar emails pessoais" },
+                  reveal_phone_number: { type: "boolean", description: "Revelar número de telefone" },
+                  reveal_linkedin_url: { type: "boolean", description: "Revelar LinkedIn" },
+                  reveal_twitter_url: { type: "boolean", description: "Revelar Twitter" },
+                  reveal_facebook_url: { type: "boolean", description: "Revelar Facebook" },
+                  reveal_website_url: { type: "boolean", description: "Revelar Website" }
+                }
+              }
+            },
+            {
+              name: "bulk_people_enrich",
+              description: "Enriquecer dados de até 10 pessoas em uma única requisição, aceitando todos os campos possíveis.",
+              inputSchema: {
+                type: "object",
+                properties: {
+                  details: {
+                    type: "array",
+                    items: {
+                      type: "object",
+                      properties: {
+                        first_name: { type: "string", description: "Primeiro nome" },
+                        last_name: { type: "string", description: "Sobrenome" },
+                        email: { type: "string", description: "Email" },
+                        domain: { type: "string", description: "Domínio da empresa" },
+                        title: { type: "string", description: "Cargo" },
+                        organization_name: { type: "string", description: "Nome da empresa" }
+                      }
+                    },
+                    description: "Array de pessoas para enriquecer (máx: 10)"
+                  },
                   reveal_personal_emails: { type: "boolean", description: "Revelar emails pessoais" },
                   reveal_phone_number: { type: "boolean", description: "Revelar número de telefone" }
                 }
@@ -277,7 +401,7 @@ app.post('/', (req, res) => {
             },
             {
               name: "organization_search",
-              description: "Buscar organizações no banco de dados do Apollo",
+              description: "Buscar organizações no banco de dados do Apollo usando todos os filtros avançados disponíveis.",
               inputSchema: {
                 type: "object",
                 properties: {
@@ -286,19 +410,51 @@ app.post('/', (req, res) => {
                   per_page: { type: "number", description: "Resultados por página (máx: 100)" },
                   organization_domains: { type: "array", items: { type: "string" }, description: "Domínios específicos" },
                   industries: { type: "array", items: { type: "string" }, description: "Indústrias" },
-                  locations: { type: "array", items: { type: "string" }, description: "Localizações" }
+                  locations: { type: "array", items: { type: "string" }, description: "Localizações" },
+                  employee_count: { type: "array", items: { type: "string" }, description: "Tamanho da empresa (1-10, 11-50, 51-200, etc.)" },
+                  revenue: { type: "array", items: { type: "string" }, description: "Receita da empresa (Under $1M, $1M-$10M, etc.)" },
+                  technologies: { type: "array", items: { type: "string" }, description: "Tecnologias usadas" },
+                  funding_total: { type: "string", description: "Total de funding" },
+                  founded_year: { type: "number", description: "Ano de fundação" },
+                  is_public: { type: "boolean", description: "Empresa é pública?" },
+                  is_funded: { type: "boolean", description: "Empresa é financiada?" },
+                  is_acquired: { type: "boolean", description: "Empresa foi adquirida?" },
+                  is_subsidiary: { type: "boolean", description: "Empresa é subsidiária?" },
+                  is_nonprofit: { type: "boolean", description: "Empresa é sem fins lucrativos?" }
                 }
               }
             },
             {
               name: "organization_enrich",
-              description: "Enriquecer dados de uma organização pelo domínio",
+              description: "Enriquecer dados de uma organização pelo domínio, retornando todos os campos possíveis.",
               inputSchema: {
                 type: "object",
                 properties: {
                   domain: { type: "string", description: "Domínio da organização (obrigatório)" }
                 },
                 required: ["domain"]
+              }
+            },
+            {
+              name: "bulk_organization_enrich",
+              description: "Enriquecer dados de múltiplas organizações pelo domínio.",
+              inputSchema: {
+                type: "object",
+                properties: {
+                  domains: { type: "array", items: { type: "string" }, description: "Array de domínios das organizações" }
+                },
+                required: ["domains"]
+              }
+            },
+            {
+              name: "organization_info",
+              description: "Obter informações completas de uma organização pelo ID.",
+              inputSchema: {
+                type: "object",
+                properties: {
+                  id: { type: "string", description: "ID da organização (obrigatório)" }
+                },
+                required: ["id"]
               }
             }
           ]
@@ -322,20 +478,192 @@ app.post('/', (req, res) => {
         });
       }
 
-      // Aqui você pode implementar a lógica para cada ferramenta
-      // Por enquanto, retornamos uma resposta de sucesso
-      return res.json({
-        jsonrpc: '2.0',
-        id: validId,
-        result: {
-          content: [
-            {
-              type: "text",
-              text: `Ferramenta ${name} executada com sucesso. Parâmetros: ${JSON.stringify(args)}`
+      // Implementação das ferramentas do Apollo
+      try {
+        let result;
+        
+        switch (name) {
+          case 'people_search':
+            console.log('🔍 Executando people_search com parâmetros:', args);
+            result = await makeApolloRequest('/mixed_people/search', 'POST', args);
+            return res.json({
+              jsonrpc: '2.0',
+              id: validId,
+              result: {
+                content: [
+                  {
+                    type: "text",
+                    text: `Busca de pessoas executada com sucesso. Encontrados ${result.people?.length || 0} resultados.`
+                  },
+                  {
+                    type: "text",
+                    text: JSON.stringify(result, null, 2)
+                  }
+                ]
+              }
+            });
+
+          case 'people_enrich':
+            console.log('🔍 Executando people_enrich com parâmetros:', args);
+            result = await makeApolloRequest('/people/match', 'POST', args);
+            return res.json({
+              jsonrpc: '2.0',
+              id: validId,
+              result: {
+                content: [
+                  {
+                    type: "text",
+                    text: `Enriquecimento de pessoa executado com sucesso.`
+                  },
+                  {
+                    type: "text",
+                    text: JSON.stringify(result, null, 2)
+                  }
+                ]
+              }
+            });
+
+          case 'bulk_people_enrich':
+            console.log('🔍 Executando bulk_people_enrich com parâmetros:', args);
+            result = await makeApolloRequest('/people/bulk_match', 'POST', args);
+            return res.json({
+              jsonrpc: '2.0',
+              id: validId,
+              result: {
+                content: [
+                  {
+                    type: "text",
+                    text: `Enriquecimento em lote executado com sucesso. Processados ${result.matches?.length || 0} registros.`
+                  },
+                  {
+                    type: "text",
+                    text: JSON.stringify(result, null, 2)
+                  }
+                ]
+              }
+            });
+
+          case 'organization_search':
+            console.log('🔍 Executando organization_search com parâmetros:', args);
+            result = await makeApolloRequest('/mixed_companies/search', 'POST', args);
+            return res.json({
+              jsonrpc: '2.0',
+              id: validId,
+              result: {
+                content: [
+                  {
+                    type: "text",
+                    text: `Busca de organizações executada com sucesso. Encontradas ${result.organizations?.length || 0} organizações.`
+                  },
+                  {
+                    type: "text",
+                    text: JSON.stringify(result, null, 2)
+                  }
+                ]
+              }
+            });
+
+          case 'organization_enrich':
+            console.log('🔍 Executando organization_enrich com parâmetros:', args);
+            if (!args.domain) {
+              return res.json({
+                jsonrpc: '2.0',
+                id: validId,
+                error: {
+                  code: -32602,
+                  message: 'Domain parameter is required for organization enrichment'
+                }
+              });
             }
-          ]
+            result = await makeApolloRequest('/organizations/enrich', 'GET', { domain: args.domain });
+            return res.json({
+              jsonrpc: '2.0',
+              id: validId,
+              result: {
+                content: [
+                  {
+                    type: "text",
+                    text: `Enriquecimento de organização executado com sucesso para o domínio: ${args.domain}`
+                  },
+                  {
+                    type: "text",
+                    text: JSON.stringify(result, null, 2)
+                  }
+                ]
+              }
+            });
+
+          case 'bulk_organization_enrich':
+            console.log('🔍 Executando bulk_organization_enrich com parâmetros:', args);
+            result = await makeApolloRequest('/organizations/bulk_enrich', 'POST', args);
+            return res.json({
+              jsonrpc: '2.0',
+              id: validId,
+              result: {
+                content: [
+                  {
+                    type: "text",
+                    text: `Enriquecimento em lote de organizações executado com sucesso.`
+                  },
+                  {
+                    type: "text",
+                    text: JSON.stringify(result, null, 2)
+                  }
+                ]
+              }
+            });
+
+          case 'organization_info':
+            console.log('🔍 Executando organization_info com parâmetros:', args);
+            if (!args.id) {
+              return res.json({
+                jsonrpc: '2.0',
+                id: validId,
+                error: {
+                  code: -32602,
+                  message: 'ID parameter is required for organization info'
+                }
+              });
+            }
+            result = await makeApolloRequest(`/organizations/${args.id}`, 'GET');
+            return res.json({
+              jsonrpc: '2.0',
+              id: validId,
+              result: {
+                content: [
+                  {
+                    type: "text",
+                    text: `Informações da organização obtidas com sucesso para o ID: ${args.id}`
+                  },
+                  {
+                    type: "text",
+                    text: JSON.stringify(result, null, 2)
+                  }
+                ]
+              }
+            });
+
+          default:
+            return res.json({
+              jsonrpc: '2.0',
+              id: validId,
+              error: {
+                code: -32601,
+                message: `Tool '${name}' not found`
+              }
+            });
         }
-      });
+      } catch (error) {
+        console.error('Erro ao executar ferramenta:', error);
+        return res.json({
+          jsonrpc: '2.0',
+          id: validId,
+          error: {
+            code: -32603,
+            message: `Error executing tool: ${error.message}`
+          }
+        });
+      }
     }
 
     // Método não reconhecido
