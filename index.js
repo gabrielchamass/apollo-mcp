@@ -486,7 +486,183 @@ app.post('/', async (req, res) => {
         switch (name) {
           case 'people_search':
             console.log('🔍 Executando people_search com parâmetros:', args);
-            result = await makeApolloRequest('/mixed_people/search', 'POST', args);
+            
+            // Estratégia de busca mais robusta para pessoas
+            let peopleSearchKeywords = args.q_keywords || '';
+            let targetCompany = args.organization_domains || args.organization_names || '';
+            
+            // Se não especificou empresa separadamente, tentar extrair do q_keywords
+            if (!targetCompany && peopleSearchKeywords) {
+              // Lista de empresas conhecidas para extração
+              const knownCompanies = ['iFood', 'Nubank', 'Icatu', 'Icatu Seguros', 'Itaú', 'Bradesco', 'Banco do Brasil', 'Petrobras', 'Vale', 'Ambev', 'JBS', 'Magazine Luiza', 'Mercado Livre', 'Stone', 'PagSeguro', 'XP Inc', 'BTG Pactual'];
+              
+              for (const company of knownCompanies) {
+                if (peopleSearchKeywords.toLowerCase().includes(company.toLowerCase())) {
+                  targetCompany = company;
+                  // Remover a empresa do q_keywords para deixar apenas o cargo
+                  peopleSearchKeywords = peopleSearchKeywords.replace(new RegExp(company, 'gi'), '').trim();
+                  break;
+                }
+              }
+            }
+            
+            let allPeopleResults = [];
+            let foundPeople = [];
+            
+            // Estratégia 1: Busca inicial com parâmetros originais
+            try {
+              let result = await makeApolloRequest('/mixed_people/search', 'POST', args);
+              allPeopleResults = result.people || [];
+              
+              // Verificar se encontrou pessoas da empresa específica
+              if (targetCompany) {
+                foundPeople = allPeopleResults.filter(person => {
+                  const personCompany = person.organization_name || person.organization_domain || '';
+                  const personTitle = person.title || '';
+                  
+                  // Buscar por empresa no nome da organização, domínio ou título
+                  return personCompany.toLowerCase().includes(targetCompany.toLowerCase()) ||
+                         (person.organization_domain && person.organization_domain.toLowerCase().includes(targetCompany.toLowerCase())) ||
+                         personTitle.toLowerCase().includes(targetCompany.toLowerCase());
+                });
+              } else {
+                // Se não especificou empresa, filtrar por palavras-chave no nome
+                foundPeople = allPeopleResults.filter(person => 
+                  person.name && person.name.toLowerCase().includes(peopleSearchKeywords.toLowerCase())
+                );
+              }
+              
+              // Se não encontrou, tentar estratégia 2: Busca com mais resultados
+              if (foundPeople.length === 0 && allPeopleResults.length > 0) {
+                console.log('🔍 Tentando busca com mais resultados...');
+                const enhancedArgs = {
+                  ...args,
+                  per_page: Math.min(100, args.per_page * 2 || 20),
+                  locations: args.locations || ["Brazil", "United States", "Global"]
+                };
+                
+                result = await makeApolloRequest('/mixed_people/search', 'POST', enhancedArgs);
+                allPeopleResults = result.people || [];
+                
+                if (targetCompany) {
+                  foundPeople = allPeopleResults.filter(person => {
+                    const personCompany = person.organization_name || person.organization_domain || '';
+                    const personTitle = person.title || '';
+                    
+                    return personCompany.toLowerCase().includes(targetCompany.toLowerCase()) ||
+                           (person.organization_domain && person.organization_domain.toLowerCase().includes(targetCompany.toLowerCase())) ||
+                           personTitle.toLowerCase().includes(targetCompany.toLowerCase());
+                  });
+                } else {
+                  foundPeople = allPeopleResults.filter(person => 
+                    person.name && person.name.toLowerCase().includes(peopleSearchKeywords.toLowerCase())
+                  );
+                }
+              }
+              
+              // Se ainda não encontrou, tentar estratégia 3: Busca simplificada por empresa
+              if (foundPeople.length === 0 && targetCompany) {
+                console.log('🔍 Tentando busca simplificada por empresa...');
+                const simpleArgs = {
+                  q_keywords: targetCompany,
+                  per_page: 50
+                };
+                
+                result = await makeApolloRequest('/mixed_people/search', 'POST', simpleArgs);
+                allPeopleResults = result.people || [];
+                
+                foundPeople = allPeopleResults.filter(person => {
+                  const personCompany = person.organization_name || person.organization_domain || '';
+                  const personTitle = person.title || '';
+                  
+                  return personCompany.toLowerCase().includes(targetCompany.toLowerCase()) ||
+                         (person.organization_domain && person.organization_domain.toLowerCase().includes(targetCompany.toLowerCase())) ||
+                         personTitle.toLowerCase().includes(targetCompany.toLowerCase());
+                });
+              }
+              
+              // Se ainda não encontrou, tentar estratégia 4: Busca por cargo específico na empresa
+              if (foundPeople.length === 0 && targetCompany && peopleSearchKeywords) {
+                console.log('🔍 Tentando busca por cargo específico na empresa...');
+                const titleArgs = {
+                  q_keywords: `${peopleSearchKeywords} ${targetCompany}`,
+                  per_page: 50
+                };
+                
+                result = await makeApolloRequest('/mixed_people/search', 'POST', titleArgs);
+                allPeopleResults = result.people || [];
+                
+                foundPeople = allPeopleResults.filter(person => {
+                  const personCompany = person.organization_name || person.organization_domain || '';
+                  const personTitle = person.title || '';
+                  
+                  return personCompany.toLowerCase().includes(targetCompany.toLowerCase()) ||
+                         (person.organization_domain && person.organization_domain.toLowerCase().includes(targetCompany.toLowerCase())) ||
+                         personTitle.toLowerCase().includes(targetCompany.toLowerCase());
+                });
+              }
+              
+            } catch (error) {
+              console.error('Erro na busca robusta de pessoas:', error);
+              // Fallback para busca original
+              const result = await makeApolloRequest('/mixed_people/search', 'POST', args);
+              allPeopleResults = result.people || [];
+              foundPeople = allPeopleResults;
+            }
+            
+            // Preparar resposta
+            let peopleResponseText = '';
+            if (foundPeople.length > 0) {
+              peopleResponseText = `🎯 **Busca de pessoas executada com sucesso!**\n\n`;
+              peopleResponseText += `✅ **Encontradas ${foundPeople.length} pessoa(s)`;
+              if (targetCompany) {
+                peopleResponseText += ` da empresa "${targetCompany}"`;
+              }
+              if (peopleSearchKeywords && peopleSearchKeywords !== targetCompany) {
+                peopleResponseText += ` com "${peopleSearchKeywords}"`;
+              }
+              peopleResponseText += `:**\n\n`;
+              
+              foundPeople.forEach(person => {
+                peopleResponseText += `👤 **${person.name || 'N/A'}**\n`;
+                peopleResponseText += `   🏢 Empresa: ${person.organization_name || 'N/A'}\n`;
+                peopleResponseText += `   💼 Cargo: ${person.title || 'N/A'}\n`;
+                peopleResponseText += `   📧 Email: ${person.email || 'N/A'}\n`;
+                peopleResponseText += `   📞 Telefone: ${person.phone || 'N/A'}\n`;
+                peopleResponseText += `   🌐 LinkedIn: ${person.linkedin_url || 'N/A'}\n`;
+                peopleResponseText += `   🌍 Localização: ${person.city || 'N/A'}, ${person.state || 'N/A'}, ${person.country || 'N/A'}\n\n`;
+              });
+              
+              if (allPeopleResults.length > foundPeople.length) {
+                peopleResponseText += `📊 Total de ${allPeopleResults.length} pessoas analisadas.\n`;
+              }
+            } else {
+              peopleResponseText = `🔍 **Busca de pessoas executada com sucesso.**\n\n`;
+              peopleResponseText += `❌ **Nenhuma pessoa encontrada`;
+              if (targetCompany) {
+                peopleResponseText += ` da empresa "${targetCompany}"`;
+              }
+              if (peopleSearchKeywords && peopleSearchKeywords !== targetCompany) {
+                peopleResponseText += ` com "${peopleSearchKeywords}"`;
+              }
+              peopleResponseText += ` nos ${allPeopleResults.length} primeiros resultados.**\n\n`;
+              
+              peopleResponseText += `💡 **Sugestões para melhorar a busca:**\n`;
+              peopleResponseText += `• Use o nome exato da empresa (ex: "Nubank", "iFood", "Icatu Seguros")\n`;
+              peopleResponseText += `• Tente buscar por cargo específico (ex: "CTO", "CEO", "Diretor")\n`;
+              peopleResponseText += `• Combine empresa + cargo (ex: "CTO Nubank")\n`;
+              peopleResponseText += `• Verifique se a empresa está na base de dados do Apollo\n\n`;
+              
+              if (allPeopleResults.length > 0) {
+                peopleResponseText += `📋 **Primeiras pessoas retornadas:**\n`;
+                allPeopleResults.slice(0, 5).forEach(person => {
+                  peopleResponseText += `• ${person.name || 'N/A'} - ${person.title || 'N/A'} na ${person.organization_name || 'N/A'}\n`;
+                });
+              }
+              
+              peopleResponseText += `\n🔍 **Dica:** Para buscar pessoas específicas de uma empresa, mencione o nome da empresa na sua solicitação.`;
+            }
+            
             return res.json({
               jsonrpc: '2.0',
               id: validId,
@@ -494,11 +670,26 @@ app.post('/', async (req, res) => {
                 content: [
                   {
                     type: "text",
-                    text: `Busca de pessoas executada com sucesso. Encontrados ${result.people?.length || 0} resultados.`
+                    text: peopleResponseText
                   },
                   {
                     type: "text",
-                    text: JSON.stringify(result, null, 2)
+                    text: JSON.stringify({
+                      searchKeywords: peopleSearchKeywords,
+                      targetCompany,
+                      totalResults: allPeopleResults.length,
+                      foundPeople: foundPeople.length,
+                      people: foundPeople.map(p => ({
+                        name: p.name,
+                        title: p.title,
+                        company: p.organization_name,
+                        domain: p.organization_domain,
+                        email: p.email,
+                        phone: p.phone,
+                        linkedin: p.linkedin_url,
+                        location: `${p.city || ''}, ${p.state || ''}, ${p.country || ''}`.replace(/^,\s*/, '').replace(/,\s*$/, '')
+                      }))
+                    }, null, 2)
                   }
                 ]
               }
