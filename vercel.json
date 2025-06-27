@@ -17,11 +17,6 @@
       "dest": "/index.js"
     }
   ],
-  "functions": {
-    "index.js": {
-      "maxDuration": 30
-    }
-  },
   "env": {
     "APOLLO_API_KEY": "@apollo-api-key"
   }
