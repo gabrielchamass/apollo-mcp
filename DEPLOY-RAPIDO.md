@@ -32,7 +32,7 @@ Todos os arquivos necessários já estão criados:
 4. Importe o repositório `apollo-mcp`
 5. Configure a variável de ambiente:
    - **Nome:** `APOLLO_API_KEY`
-   - **Valor:** `Jq7TbdOPdpxHQOvdqHbEIQ`
+   - **Valor:** ` Jq7TbdOPdpxHQOvdqHbEIQ`
 6. Clique em "Deploy"
 
 ### 4. 🔗 Obtenha a URL

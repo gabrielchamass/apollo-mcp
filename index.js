@@ -59,13 +59,125 @@ app.get('/', (req, res) => {
 
 // Rota POST na raiz para compatibilidade com deco.chat (JSON-RPC 2.0)
 app.post('/', (req, res) => {
+  console.log('📥 Requisição recebida:', JSON.stringify(req.body, null, 2));
+  
   const { jsonrpc, id, method, params } = req.body;
   
+  // Garantir que sempre temos um id válido (aceitar null e undefined)
+  const validId = (id === null || id === undefined) ? 0 : id;
+  
+  console.log('🔍 Dados processados:', { jsonrpc, id, validId, method, params });
+  
+  // Se não tem jsonrpc, pode ser uma requisição diferente
+  if (!jsonrpc) {
+    console.log('⚠️ Requisição sem jsonrpc, tentando processar como MCP padrão');
+    
+    // Se tem method, pode ser uma requisição MCP
+    if (method === 'tools/list') {
+      console.log('✅ Respondendo tools/list');
+      return res.json({
+        jsonrpc: '2.0',
+        id: validId,
+        result: {
+          tools: [
+            {
+              name: "people_search",
+              description: "Buscar pessoas no banco de dados do Apollo usando filtros",
+              inputSchema: {
+                type: "object",
+                properties: {
+                  q_keywords: { type: "string", description: "Palavras-chave para busca" },
+                  page: { type: "number", description: "Número da página (padrão: 1)" },
+                  per_page: { type: "number", description: "Resultados por página (máx: 100)" },
+                  organization_domains: { type: "array", items: { type: "string" }, description: "Domínios das organizações" },
+                  titles: { type: "array", items: { type: "string" }, description: "Cargos das pessoas" },
+                  locations: { type: "array", items: { type: "string" }, description: "Localizações" },
+                  seniority_levels: { type: "array", items: { type: "string" }, description: "Níveis de senioridade" }
+                }
+              }
+            },
+            {
+              name: "people_enrich",
+              description: "Enriquecer dados de uma pessoa específica",
+              inputSchema: {
+                type: "object",
+                properties: {
+                  first_name: { type: "string", description: "Primeiro nome" },
+                  last_name: { type: "string", description: "Sobrenome" },
+                  email: { type: "string", description: "Email" },
+                  domain: { type: "string", description: "Domínio da empresa" },
+                  reveal_personal_emails: { type: "boolean", description: "Revelar emails pessoais" },
+                  reveal_phone_number: { type: "boolean", description: "Revelar número de telefone" }
+                }
+              }
+            },
+            {
+              name: "organization_search",
+              description: "Buscar organizações no banco de dados do Apollo",
+              inputSchema: {
+                type: "object",
+                properties: {
+                  q_keywords: { type: "string", description: "Palavras-chave para busca" },
+                  page: { type: "number", description: "Número da página (padrão: 1)" },
+                  per_page: { type: "number", description: "Resultados por página (máx: 100)" },
+                  organization_domains: { type: "array", items: { type: "string" }, description: "Domínios específicos" },
+                  industries: { type: "array", items: { type: "string" }, description: "Indústrias" },
+                  locations: { type: "array", items: { type: "string" }, description: "Localizações" }
+                }
+              }
+            },
+            {
+              name: "organization_enrich",
+              description: "Enriquecer dados de uma organização pelo domínio",
+              inputSchema: {
+                type: "object",
+                properties: {
+                  domain: { type: "string", description: "Domínio da organização (obrigatório)" }
+                },
+                required: ["domain"]
+              }
+            }
+          ]
+        }
+      });
+    }
+    
+    if (method === 'tools/call') {
+      console.log('✅ Respondendo tools/call');
+      const { name, arguments: args } = params || {};
+      
+      if (!name) {
+        return res.json({
+          jsonrpc: '2.0',
+          id: validId,
+          error: {
+            code: -32602,
+            message: 'Invalid params: tool name is required'
+          }
+        });
+      }
+
+      return res.json({
+        jsonrpc: '2.0',
+        id: validId,
+        result: {
+          content: [
+            {
+              type: "text",
+              text: `Ferramenta ${name} executada com sucesso. Parâmetros: ${JSON.stringify(args)}`
+            }
+          ]
+        }
+      });
+    }
+  }
+  
   // Validar se é uma requisição JSON-RPC válida
-  if (jsonrpc !== '2.0' || !id) {
+  if (jsonrpc !== '2.0') {
+    console.log('❌ JSON-RPC inválido:', jsonrpc);
     return res.json({
       jsonrpc: '2.0',
-      id: id || null,
+      id: validId,
       error: {
         code: -32600,
         message: 'Invalid Request'
@@ -75,9 +187,10 @@ app.post('/', (req, res) => {
 
   // Se for uma requisição de listagem de ferramentas
   if (method === 'tools/list') {
+    console.log('✅ Respondendo tools/list (JSON-RPC)');
     return res.json({
       jsonrpc: '2.0',
-      id: id,
+      id: validId,
       result: {
         tools: [
           {
@@ -144,12 +257,13 @@ app.post('/', (req, res) => {
 
   // Se for uma requisição de execução de ferramenta
   if (method === 'tools/call') {
+    console.log('✅ Respondendo tools/call (JSON-RPC)');
     const { name, arguments: args } = params || {};
     
     if (!name) {
       return res.json({
         jsonrpc: '2.0',
-        id: id,
+        id: validId,
         error: {
           code: -32602,
           message: 'Invalid params: tool name is required'
@@ -161,7 +275,7 @@ app.post('/', (req, res) => {
     // Por enquanto, retornamos uma resposta de sucesso
     return res.json({
       jsonrpc: '2.0',
-      id: id,
+      id: validId,
       result: {
         content: [
           {
@@ -174,9 +288,10 @@ app.post('/', (req, res) => {
   }
 
   // Método não reconhecido
+  console.log('❌ Método não reconhecido:', method);
   return res.json({
     jsonrpc: '2.0',
-    id: id,
+    id: validId,
     error: {
       code: -32601,
       message: 'Method not found'
