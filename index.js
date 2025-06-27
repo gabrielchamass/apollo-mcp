@@ -323,10 +323,13 @@ app.use('*', (req, res) => {
   });
 });
 
-app.listen(PORT, () => {
-  console.log(`🚀 Apollo MCP rodando na porta ${PORT}`);
-  console.log(`📚 Documentação disponível em: http://localhost:${PORT}/api/tools`);
-  console.log(`🔑 API Key configurada: ${APOLLO_API_KEY ? 'Sim' : 'Não'}`);
-});
+// Para desenvolvimento local
+if (process.env.NODE_ENV !== 'production') {
+  app.listen(PORT, () => {
+    console.log(`🚀 Apollo MCP rodando na porta ${PORT}`);
+    console.log(`📚 Documentação disponível em: http://localhost:${PORT}/api/tools`);
+    console.log(`🔑 API Key configurada: ${APOLLO_API_KEY ? 'Sim' : 'Não'}`);
+  });
+}
 
 module.exports = app; 
