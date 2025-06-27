@@ -547,6 +547,34 @@ app.post('/', async (req, res) => {
           case 'organization_search':
             console.log('🔍 Executando organization_search com parâmetros:', args);
             result = await makeApolloRequest('/mixed_companies/search', 'POST', args);
+            
+            // Analisar os resultados
+            const accounts = result.accounts || [];
+            const searchKeywords = args.q_keywords || '';
+            const foundCompanies = accounts.filter(account => 
+              account.name && account.name.toLowerCase().includes(searchKeywords.toLowerCase())
+            );
+            
+            let responseText = '';
+            if (foundCompanies.length > 0) {
+              responseText = `Busca de organizações executada com sucesso. Encontradas ${accounts.length} organizações no total.\n\n`;
+              responseText += `🔍 Empresas encontradas com "${searchKeywords}":\n`;
+              foundCompanies.forEach(company => {
+                responseText += `• ${company.name} (${company.primary_domain || 'N/A'}) - ${company.organization_country || 'N/A'}\n`;
+              });
+            } else {
+              responseText = `Busca de organizações executada com sucesso. Encontradas ${accounts.length} organizações no total.\n\n`;
+              responseText += `❌ Nenhuma empresa encontrada com "${searchKeywords}" nos primeiros resultados.\n\n`;
+              responseText += `💡 Sugestões:\n`;
+              responseText += `• Tente buscar apenas parte do nome (ex: "Icatu" em vez de "Icatu Seguros")\n`;
+              responseText += `• Verifique se a empresa está na base de dados do Apollo\n`;
+              responseText += `• Considere usar a ferramenta de enriquecimento por domínio se souber o website da empresa\n\n`;
+              responseText += `📋 Primeiras empresas retornadas:\n`;
+              accounts.slice(0, 5).forEach(company => {
+                responseText += `• ${company.name} (${company.primary_domain || 'N/A'})\n`;
+              });
+            }
+            
             return res.json({
               jsonrpc: '2.0',
               id: validId,
@@ -554,7 +582,7 @@ app.post('/', async (req, res) => {
                 content: [
                   {
                     type: "text",
-                    text: `Busca de organizações executada com sucesso. Encontradas ${result.organizations?.length || 0} organizações.`
+                    text: responseText
                   },
                   {
                     type: "text",
