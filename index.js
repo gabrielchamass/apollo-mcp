@@ -57,6 +57,25 @@ app.get('/', (req, res) => {
   });
 });
 
+// Rota POST na raiz para compatibilidade com deco.chat
+app.post('/', (req, res) => {
+  res.json({
+    message: 'Apollo MCP está funcionando!',
+    version: '1.0.0',
+    method: 'POST',
+    body: req.body,
+    availableEndpoints: [
+      '/api/people/search',
+      '/api/people/enrich',
+      '/api/people/bulk-enrich',
+      '/api/organizations/search',
+      '/api/organizations/enrich',
+      '/api/organizations/bulk-enrich',
+      '/api/organizations/info'
+    ]
+  });
+});
+
 // Rota de teste específica para MCP
 app.get('/test', (req, res) => {
   res.json({
@@ -204,6 +223,95 @@ app.get('/api/organizations/info/:id', async (req, res) => {
 
 // Rota para obter informações sobre as ferramentas disponíveis (para MCP)
 app.get('/api/tools', (req, res) => {
+  res.json({
+    tools: [
+      {
+        name: "people_search",
+        description: "Buscar pessoas no banco de dados do Apollo usando filtros",
+        endpoint: "/api/people/search",
+        method: "POST",
+        parameters: {
+          q_keywords: "Palavras-chave para busca",
+          page: "Número da página (padrão: 1)",
+          per_page: "Resultados por página (máx: 100)",
+          organization_domains: "Domínios das organizações",
+          titles: "Cargos das pessoas",
+          locations: "Localizações",
+          seniority_levels: "Níveis de senioridade"
+        }
+      },
+      {
+        name: "people_enrich",
+        description: "Enriquecer dados de uma pessoa específica",
+        endpoint: "/api/people/enrich",
+        method: "POST",
+        parameters: {
+          first_name: "Primeiro nome",
+          last_name: "Sobrenome",
+          email: "Email",
+          domain: "Domínio da empresa",
+          reveal_personal_emails: "Revelar emails pessoais (boolean)",
+          reveal_phone_number: "Revelar número de telefone (boolean)"
+        }
+      },
+      {
+        name: "bulk_people_enrich",
+        description: "Enriquecer dados de até 10 pessoas em uma única requisição",
+        endpoint: "/api/people/bulk-enrich",
+        method: "POST",
+        parameters: {
+          details: "Array com detalhes das pessoas",
+          reveal_personal_emails: "Revelar emails pessoais (boolean)",
+          reveal_phone_number: "Revelar número de telefone (boolean)"
+        }
+      },
+      {
+        name: "organization_search",
+        description: "Buscar organizações no banco de dados do Apollo",
+        endpoint: "/api/organizations/search",
+        method: "POST",
+        parameters: {
+          q_keywords: "Palavras-chave para busca",
+          page: "Número da página (padrão: 1)",
+          per_page: "Resultados por página (máx: 100)",
+          organization_domains: "Domínios específicos",
+          industries: "Indústrias",
+          locations: "Localizações"
+        }
+      },
+      {
+        name: "organization_enrich",
+        description: "Enriquecer dados de uma organização pelo domínio",
+        endpoint: "/api/organizations/enrich",
+        method: "GET",
+        parameters: {
+          domain: "Domínio da organização (obrigatório)"
+        }
+      },
+      {
+        name: "bulk_organization_enrich",
+        description: "Enriquecer dados de múltiplas organizações",
+        endpoint: "/api/organizations/bulk-enrich",
+        method: "POST",
+        parameters: {
+          domains: "Array de domínios das organizações"
+        }
+      },
+      {
+        name: "organization_info",
+        description: "Obter informações completas de uma organização pelo ID",
+        endpoint: "/api/organizations/info/:id",
+        method: "GET",
+        parameters: {
+          id: "ID da organização (obrigatório)"
+        }
+      }
+    ]
+  });
+});
+
+// Rota POST para MCP discovery (compatibilidade com deco.chat)
+app.post('/api/tools', (req, res) => {
   res.json({
     tools: [
       {
