@@ -184,6 +184,24 @@ app.post('/', (req, res) => {
           }
         });
       }
+
+      if (method === 'initialize') {
+        console.log('✅ Respondendo initialize');
+        return res.json({
+          jsonrpc: '2.0',
+          id: validId,
+          result: {
+            protocolVersion: "2024-11-05",
+            capabilities: {
+              tools: {}
+            },
+            serverInfo: {
+              name: "Apollo MCP",
+              version: "1.0.0"
+            }
+          }
+        });
+      }
     }
     
     // Validar se é uma requisição JSON-RPC válida
@@ -195,6 +213,25 @@ app.post('/', (req, res) => {
         error: {
           code: -32600,
           message: 'Invalid Request'
+        }
+      });
+    }
+
+    // Se for uma requisição de inicialização
+    if (method === 'initialize') {
+      console.log('✅ Respondendo initialize (JSON-RPC)');
+      return res.json({
+        jsonrpc: '2.0',
+        id: validId,
+        result: {
+          protocolVersion: "2024-11-05",
+          capabilities: {
+            tools: {}
+          },
+          serverInfo: {
+            name: "Apollo MCP",
+            version: "1.0.0"
+          }
         }
       });
     }
