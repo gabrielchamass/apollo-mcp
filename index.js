@@ -22,14 +22,15 @@ async function makeApolloRequest(endpoint, method = 'GET', data = null) {
       url: `${APOLLO_BASE_URL}${endpoint}`,
       headers: {
         'Content-Type': 'application/json',
-        'Cache-Control': 'no-cache'
+        'Cache-Control': 'no-cache',
+        'X-Api-Key': APOLLO_API_KEY
       }
     };
 
     if (method === 'GET') {
-      config.params = { ...data, api_key: APOLLO_API_KEY };
+      config.params = data;
     } else {
-      config.data = { ...data, api_key: APOLLO_API_KEY };
+      config.data = data;
     }
 
     const response = await axios(config);
