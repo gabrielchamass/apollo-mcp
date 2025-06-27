@@ -57,13 +57,44 @@ app.get('/', (req, res) => {
   });
 });
 
+// Rota de teste específica para MCP
+app.get('/test', (req, res) => {
+  res.json({
+    status: 'success',
+    message: 'MCP Apollo está funcionando corretamente',
+    timestamp: new Date().toISOString(),
+    apiKey: APOLLO_API_KEY ? 'Configurada' : 'Não configurada'
+  });
+});
+
+// Rota para verificar se a API do Apollo está acessível
+app.get('/api/test', async (req, res) => {
+  try {
+    // Teste simples da API do Apollo
+    const result = await makeApolloRequest('/organizations/enrich', 'GET', { domain: 'google.com' });
+    res.json({
+      status: 'success',
+      message: 'API do Apollo está funcionando',
+      testResult: result
+    });
+  } catch (error) {
+    res.status(500).json({
+      status: 'error',
+      message: 'Erro ao testar API do Apollo',
+      error: error.response?.data || error.message
+    });
+  }
+});
+
 // 1. People Search
 app.post('/api/people/search', async (req, res) => {
   try {
     const searchData = req.body;
+    console.log('People search request:', searchData);
     const result = await makeApolloRequest('/mixed_people/search', 'POST', searchData);
     res.json(result);
   } catch (error) {
+    console.error('People search error:', error);
     res.status(500).json({
       error: 'Erro ao buscar pessoas',
       details: error.response?.data || error.message
@@ -75,9 +106,11 @@ app.post('/api/people/search', async (req, res) => {
 app.post('/api/people/enrich', async (req, res) => {
   try {
     const enrichData = req.body;
+    console.log('People enrich request:', enrichData);
     const result = await makeApolloRequest('/people/match', 'POST', enrichData);
     res.json(result);
   } catch (error) {
+    console.error('People enrich error:', error);
     res.status(500).json({
       error: 'Erro ao enriquecer dados da pessoa',
       details: error.response?.data || error.message
@@ -89,9 +122,11 @@ app.post('/api/people/enrich', async (req, res) => {
 app.post('/api/people/bulk-enrich', async (req, res) => {
   try {
     const bulkEnrichData = req.body;
+    console.log('Bulk people enrich request:', bulkEnrichData);
     const result = await makeApolloRequest('/people/bulk_match', 'POST', bulkEnrichData);
     res.json(result);
   } catch (error) {
+    console.error('Bulk people enrich error:', error);
     res.status(500).json({
       error: 'Erro ao enriquecer dados em lote',
       details: error.response?.data || error.message
@@ -103,9 +138,11 @@ app.post('/api/people/bulk-enrich', async (req, res) => {
 app.post('/api/organizations/search', async (req, res) => {
   try {
     const searchData = req.body;
+    console.log('Organization search request:', searchData);
     const result = await makeApolloRequest('/mixed_companies/search', 'POST', searchData);
     res.json(result);
   } catch (error) {
+    console.error('Organization search error:', error);
     res.status(500).json({
       error: 'Erro ao buscar organizações',
       details: error.response?.data || error.message
@@ -121,9 +158,11 @@ app.get('/api/organizations/enrich', async (req, res) => {
       return res.status(400).json({ error: 'Parâmetro domain é obrigatório' });
     }
     
+    console.log('Organization enrich request for domain:', domain);
     const result = await makeApolloRequest('/organizations/enrich', 'GET', { domain });
     res.json(result);
   } catch (error) {
+    console.error('Organization enrich error:', error);
     res.status(500).json({
       error: 'Erro ao enriquecer dados da organização',
       details: error.response?.data || error.message
@@ -135,9 +174,11 @@ app.get('/api/organizations/enrich', async (req, res) => {
 app.post('/api/organizations/bulk-enrich', async (req, res) => {
   try {
     const bulkEnrichData = req.body;
+    console.log('Bulk organization enrich request:', bulkEnrichData);
     const result = await makeApolloRequest('/organizations/bulk_enrich', 'POST', bulkEnrichData);
     res.json(result);
   } catch (error) {
+    console.error('Bulk organization enrich error:', error);
     res.status(500).json({
       error: 'Erro ao enriquecer dados de organizações em lote',
       details: error.response?.data || error.message
@@ -149,9 +190,11 @@ app.post('/api/organizations/bulk-enrich', async (req, res) => {
 app.get('/api/organizations/info/:id', async (req, res) => {
   try {
     const { id } = req.params;
+    console.log('Organization info request for ID:', id);
     const result = await makeApolloRequest(`/organizations/${id}`, 'GET');
     res.json(result);
   } catch (error) {
+    console.error('Organization info error:', error);
     res.status(500).json({
       error: 'Erro ao obter informações completas da organização',
       details: error.response?.data || error.message
@@ -259,10 +302,15 @@ app.use((error, req, res, next) => {
 
 // Middleware para rotas não encontradas
 app.use('*', (req, res) => {
+  console.log('Rota não encontrada:', req.method, req.originalUrl);
   res.status(404).json({
     error: 'Endpoint não encontrado',
+    method: req.method,
+    url: req.originalUrl,
     availableEndpoints: [
       'GET /',
+      'GET /test',
+      'GET /api/test',
       'GET /api/tools',
       'POST /api/people/search',
       'POST /api/people/enrich',
