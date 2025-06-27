@@ -546,33 +546,99 @@ app.post('/', async (req, res) => {
 
           case 'organization_search':
             console.log('🔍 Executando organization_search com parâmetros:', args);
-            result = await makeApolloRequest('/mixed_companies/search', 'POST', args);
             
-            // Analisar os resultados
-            const accounts = result.accounts || [];
+            // Estratégia de busca mais robusta
             const searchKeywords = args.q_keywords || '';
-            const foundCompanies = accounts.filter(account => 
-              account.name && account.name.toLowerCase().includes(searchKeywords.toLowerCase())
-            );
+            let allResults = [];
+            let foundCompanies = [];
             
+            // Estratégia 1: Busca inicial com parâmetros originais
+            try {
+              let result = await makeApolloRequest('/mixed_companies/search', 'POST', args);
+              allResults = result.accounts || [];
+              
+              // Verificar se encontrou a empresa
+              foundCompanies = allResults.filter(account => 
+                account.name && account.name.toLowerCase().includes(searchKeywords.toLowerCase())
+              );
+              
+              // Se não encontrou, tentar estratégia 2: Busca com mais resultados
+              if (foundCompanies.length === 0 && allResults.length > 0) {
+                console.log('🔍 Tentando busca com mais resultados...');
+                const enhancedArgs = {
+                  ...args,
+                  per_page: Math.min(100, args.per_page * 2 || 20),
+                  locations: args.locations || ["Brazil", "United States", "Global"]
+                };
+                
+                result = await makeApolloRequest('/mixed_companies/search', 'POST', enhancedArgs);
+                allResults = result.accounts || [];
+                
+                foundCompanies = allResults.filter(account => 
+                  account.name && account.name.toLowerCase().includes(searchKeywords.toLowerCase())
+                );
+              }
+              
+              // Se ainda não encontrou, tentar estratégia 3: Busca apenas com palavras-chave
+              if (foundCompanies.length === 0 && allResults.length > 0) {
+                console.log('🔍 Tentando busca simplificada...');
+                const simpleArgs = {
+                  q_keywords: searchKeywords,
+                  per_page: 50
+                };
+                
+                result = await makeApolloRequest('/mixed_companies/search', 'POST', simpleArgs);
+                allResults = result.accounts || [];
+                
+                foundCompanies = allResults.filter(account => 
+                  account.name && account.name.toLowerCase().includes(searchKeywords.toLowerCase())
+                );
+              }
+              
+            } catch (error) {
+              console.error('Erro na busca robusta:', error);
+              // Fallback para busca original
+              const result = await makeApolloRequest('/mixed_companies/search', 'POST', args);
+              allResults = result.accounts || [];
+              foundCompanies = allResults.filter(account => 
+                account.name && account.name.toLowerCase().includes(searchKeywords.toLowerCase())
+              );
+            }
+            
+            // Preparar resposta
             let responseText = '';
             if (foundCompanies.length > 0) {
-              responseText = `Busca de organizações executada com sucesso. Encontradas ${accounts.length} organizações no total.\n\n`;
-              responseText += `🔍 Empresas encontradas com "${searchKeywords}":\n`;
+              responseText = `🎯 **Busca de organizações executada com sucesso!**\n\n`;
+              responseText += `✅ **Encontradas ${foundCompanies.length} empresa(s) com "${searchKeywords}":**\n\n`;
               foundCompanies.forEach(company => {
-                responseText += `• ${company.name} (${company.primary_domain || 'N/A'}) - ${company.organization_country || 'N/A'}\n`;
+                responseText += `🏢 **${company.name}**\n`;
+                responseText += `   🌐 Website: ${company.website_url || 'N/A'}\n`;
+                responseText += `   📧 Domínio: ${company.primary_domain || 'N/A'}\n`;
+                responseText += `   🌍 País: ${company.organization_country || 'N/A'}\n`;
+                responseText += `   📞 Telefone: ${company.phone || 'N/A'}\n`;
+                responseText += `   👥 Funcionários: ${company.num_contacts || 'N/A'} contatos\n\n`;
               });
+              
+              if (allResults.length > foundCompanies.length) {
+                responseText += `📊 Total de ${allResults.length} organizações analisadas.\n`;
+              }
             } else {
-              responseText = `Busca de organizações executada com sucesso. Encontradas ${accounts.length} organizações no total.\n\n`;
-              responseText += `❌ Nenhuma empresa encontrada com "${searchKeywords}" nos primeiros resultados.\n\n`;
-              responseText += `💡 Sugestões:\n`;
-              responseText += `• Tente buscar apenas parte do nome (ex: "Icatu" em vez de "Icatu Seguros")\n`;
+              responseText = `🔍 **Busca de organizações executada com sucesso.**\n\n`;
+              responseText += `❌ **Nenhuma empresa encontrada com "${searchKeywords}" nos ${allResults.length} primeiros resultados.**\n\n`;
+              responseText += `💡 **Sugestões para melhorar a busca:**\n`;
+              responseText += `• Tente buscar apenas parte do nome (ex: "iFood" em vez de "iFood Delivery")\n`;
               responseText += `• Verifique se a empresa está na base de dados do Apollo\n`;
-              responseText += `• Considere usar a ferramenta de enriquecimento por domínio se souber o website da empresa\n\n`;
-              responseText += `📋 Primeiras empresas retornadas:\n`;
-              accounts.slice(0, 5).forEach(company => {
-                responseText += `• ${company.name} (${company.primary_domain || 'N/A'})\n`;
-              });
+              responseText += `• Considere usar a ferramenta de enriquecimento por domínio se souber o website\n`;
+              responseText += `• Tente buscar por variações do nome (ex: "Movile" para iFood)\n\n`;
+              
+              if (allResults.length > 0) {
+                responseText += `📋 **Primeiras empresas retornadas:**\n`;
+                allResults.slice(0, 5).forEach(company => {
+                  responseText += `• ${company.name} (${company.primary_domain || 'N/A'}) - ${company.organization_country || 'N/A'}\n`;
+                });
+              }
+              
+              responseText += `\n🔍 **Dica:** A API do Apollo pode ter limitações com a chave gratuita. Empresas específicas podem estar em posições mais baixas nos resultados.`;
             }
             
             return res.json({
@@ -586,7 +652,19 @@ app.post('/', async (req, res) => {
                   },
                   {
                     type: "text",
-                    text: JSON.stringify(result, null, 2)
+                    text: JSON.stringify({
+                      searchKeywords,
+                      totalResults: allResults.length,
+                      foundCompanies: foundCompanies.length,
+                      companies: foundCompanies.map(c => ({
+                        name: c.name,
+                        domain: c.primary_domain,
+                        country: c.organization_country,
+                        website: c.website_url,
+                        phone: c.phone,
+                        contacts: c.num_contacts
+                      }))
+                    }, null, 2)
                   }
                 ]
               }
