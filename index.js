@@ -57,22 +57,130 @@ app.get('/', (req, res) => {
   });
 });
 
-// Rota POST na raiz para compatibilidade com deco.chat
+// Rota POST na raiz para compatibilidade com deco.chat (JSON-RPC 2.0)
 app.post('/', (req, res) => {
-  res.json({
-    message: 'Apollo MCP está funcionando!',
-    version: '1.0.0',
-    method: 'POST',
-    body: req.body,
-    availableEndpoints: [
-      '/api/people/search',
-      '/api/people/enrich',
-      '/api/people/bulk-enrich',
-      '/api/organizations/search',
-      '/api/organizations/enrich',
-      '/api/organizations/bulk-enrich',
-      '/api/organizations/info'
-    ]
+  const { jsonrpc, id, method, params } = req.body;
+  
+  // Validar se é uma requisição JSON-RPC válida
+  if (jsonrpc !== '2.0' || !id) {
+    return res.json({
+      jsonrpc: '2.0',
+      id: id || null,
+      error: {
+        code: -32600,
+        message: 'Invalid Request'
+      }
+    });
+  }
+
+  // Se for uma requisição de listagem de ferramentas
+  if (method === 'tools/list') {
+    return res.json({
+      jsonrpc: '2.0',
+      id: id,
+      result: {
+        tools: [
+          {
+            name: "people_search",
+            description: "Buscar pessoas no banco de dados do Apollo usando filtros",
+            inputSchema: {
+              type: "object",
+              properties: {
+                q_keywords: { type: "string", description: "Palavras-chave para busca" },
+                page: { type: "number", description: "Número da página (padrão: 1)" },
+                per_page: { type: "number", description: "Resultados por página (máx: 100)" },
+                organization_domains: { type: "array", items: { type: "string" }, description: "Domínios das organizações" },
+                titles: { type: "array", items: { type: "string" }, description: "Cargos das pessoas" },
+                locations: { type: "array", items: { type: "string" }, description: "Localizações" },
+                seniority_levels: { type: "array", items: { type: "string" }, description: "Níveis de senioridade" }
+              }
+            }
+          },
+          {
+            name: "people_enrich",
+            description: "Enriquecer dados de uma pessoa específica",
+            inputSchema: {
+              type: "object",
+              properties: {
+                first_name: { type: "string", description: "Primeiro nome" },
+                last_name: { type: "string", description: "Sobrenome" },
+                email: { type: "string", description: "Email" },
+                domain: { type: "string", description: "Domínio da empresa" },
+                reveal_personal_emails: { type: "boolean", description: "Revelar emails pessoais" },
+                reveal_phone_number: { type: "boolean", description: "Revelar número de telefone" }
+              }
+            }
+          },
+          {
+            name: "organization_search",
+            description: "Buscar organizações no banco de dados do Apollo",
+            inputSchema: {
+              type: "object",
+              properties: {
+                q_keywords: { type: "string", description: "Palavras-chave para busca" },
+                page: { type: "number", description: "Número da página (padrão: 1)" },
+                per_page: { type: "number", description: "Resultados por página (máx: 100)" },
+                organization_domains: { type: "array", items: { type: "string" }, description: "Domínios específicos" },
+                industries: { type: "array", items: { type: "string" }, description: "Indústrias" },
+                locations: { type: "array", items: { type: "string" }, description: "Localizações" }
+              }
+            }
+          },
+          {
+            name: "organization_enrich",
+            description: "Enriquecer dados de uma organização pelo domínio",
+            inputSchema: {
+              type: "object",
+              properties: {
+                domain: { type: "string", description: "Domínio da organização (obrigatório)" }
+              },
+              required: ["domain"]
+            }
+          }
+        ]
+      }
+    });
+  }
+
+  // Se for uma requisição de execução de ferramenta
+  if (method === 'tools/call') {
+    const { name, arguments: args } = params || {};
+    
+    if (!name) {
+      return res.json({
+        jsonrpc: '2.0',
+        id: id,
+        error: {
+          code: -32602,
+          message: 'Invalid params: tool name is required'
+        }
+      });
+    }
+
+    // Aqui você pode implementar a lógica para cada ferramenta
+    // Por enquanto, retornamos uma resposta de sucesso
+    return res.json({
+      jsonrpc: '2.0',
+      id: id,
+      result: {
+        content: [
+          {
+            type: "text",
+            text: `Ferramenta ${name} executada com sucesso. Parâmetros: ${JSON.stringify(args)}`
+          }
+        ]
+      }
+    });
+  }
+
+  // Método não reconhecido
+  return res.json({
+    jsonrpc: '2.0',
+    id: id,
+    error: {
+      code: -32601,
+      message: 'Method not found'
+    }
   });
 });
 
@@ -223,95 +331,6 @@ app.get('/api/organizations/info/:id', async (req, res) => {
 
 // Rota para obter informações sobre as ferramentas disponíveis (para MCP)
 app.get('/api/tools', (req, res) => {
-  res.json({
-    tools: [
-      {
-        name: "people_search",
-        description: "Buscar pessoas no banco de dados do Apollo usando filtros",
-        endpoint: "/api/people/search",
-        method: "POST",
-        parameters: {
-          q_keywords: "Palavras-chave para busca",
-          page: "Número da página (padrão: 1)",
-          per_page: "Resultados por página (máx: 100)",
-          organization_domains: "Domínios das organizações",
-          titles: "Cargos das pessoas",
-          locations: "Localizações",
-          seniority_levels: "Níveis de senioridade"
-        }
-      },
-      {
-        name: "people_enrich",
-        description: "Enriquecer dados de uma pessoa específica",
-        endpoint: "/api/people/enrich",
-        method: "POST",
-        parameters: {
-          first_name: "Primeiro nome",
-          last_name: "Sobrenome",
-          email: "Email",
-          domain: "Domínio da empresa",
-          reveal_personal_emails: "Revelar emails pessoais (boolean)",
-          reveal_phone_number: "Revelar número de telefone (boolean)"
-        }
-      },
-      {
-        name: "bulk_people_enrich",
-        description: "Enriquecer dados de até 10 pessoas em uma única requisição",
-        endpoint: "/api/people/bulk-enrich",
-        method: "POST",
-        parameters: {
-          details: "Array com detalhes das pessoas",
-          reveal_personal_emails: "Revelar emails pessoais (boolean)",
-          reveal_phone_number: "Revelar número de telefone (boolean)"
-        }
-      },
-      {
-        name: "organization_search",
-        description: "Buscar organizações no banco de dados do Apollo",
-        endpoint: "/api/organizations/search",
-        method: "POST",
-        parameters: {
-          q_keywords: "Palavras-chave para busca",
-          page: "Número da página (padrão: 1)",
-          per_page: "Resultados por página (máx: 100)",
-          organization_domains: "Domínios específicos",
-          industries: "Indústrias",
-          locations: "Localizações"
-        }
-      },
-      {
-        name: "organization_enrich",
-        description: "Enriquecer dados de uma organização pelo domínio",
-        endpoint: "/api/organizations/enrich",
-        method: "GET",
-        parameters: {
-          domain: "Domínio da organização (obrigatório)"
-        }
-      },
-      {
-        name: "bulk_organization_enrich",
-        description: "Enriquecer dados de múltiplas organizações",
-        endpoint: "/api/organizations/bulk-enrich",
-        method: "POST",
-        parameters: {
-          domains: "Array de domínios das organizações"
-        }
-      },
-      {
-        name: "organization_info",
-        description: "Obter informações completas de uma organização pelo ID",
-        endpoint: "/api/organizations/info/:id",
-        method: "GET",
-        parameters: {
-          id: "ID da organização (obrigatório)"
-        }
-      }
-    ]
-  });
-});
-
-// Rota POST para MCP discovery (compatibilidade com deco.chat)
-app.post('/api/tools', (req, res) => {
   res.json({
     tools: [
       {
